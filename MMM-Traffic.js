@@ -35,35 +35,40 @@ Module.register('MMM-Traffic', {
 
     start: function() {
 	    Log.info('Starting module: ' + this.name);
-	    
-	    for (var t in this.config.trips) {
-		    var trip = this.config.trips[t];
-		    this.addTrip(trip.route_name, trip.mode, trip.origin, trip.destination, trip.departure_time, trip.arrival_time, trip.show_summary);
-	    }
 	    if (this.data.classes === 'MMM-Traffic') {
 		    this.data.classes = 'bright medium';
 	    }
 	    this.loaded = false;
-	    this.leaveBy = '';
-	    this.url = encodeURI('https://maps.googleapis.com/maps/api/directions/json' + this.getParams());
+
 	    this.symbols = {
 		    'driving': 'fa fa-car',
 		    'walking': 'fa fa-odnoklassniki',
 		    'bicycling': 'fa fa-bicycle',
 		    'transit': 'fa fa-train'
 	    };
-	    this.commute = '';
-	    this.summary = '';
-	    this.updateCommute(this);
+
+	    for (var t in self.config.trips) {
+	    	var trip = self.config.trips[t];
+
+		    trip.leaveBy = '';
+		    trip.url = encodeURI('https://maps.googleapis.com/maps/api/directions/json' + trip.getParams());
+		    trip.commute = '';
+		    trip.summary = '';
+		    trip.updateCommute(trip);
+		}
     },
 
     updateCommute: function(self) {
-	    if (self.config.arrival_time.length == 4) {
-		    self.sendSocketNotification('LEAVE_BY', {'url':self.url, 'arrival':self.config.arrival_time});
-	    } else {
-		    self.sendSocketNotification('TRAFFIC_URL', self.url);
+    	for (var t in self.config.trips) {
+    		var trip = self.config.trips[t];
+
+		    if (trip.arrival_time.length == 4) {
+			    self.sendSocketNotification('LEAVE_BY', {'url':self.url, 'arrival':trip.arrival_time});
+		    } else {
+			    self.sendSocketNotification('TRAFFIC_URL', self.url);
+		    }
+		    setTimeout(self.updateCommute, self.config.interval, self);
 	    }
-	    setTimeout(self.updateCommute, self.config.interval, self);
     },
 
     getStyles: function() {
@@ -72,68 +77,83 @@ Module.register('MMM-Traffic', {
 
     getDom: function() {
 	    var wrapper = document.createElement("div");
-	    var commuteInfo = document.createElement('div'); //support for config.changeColor
-	    
+
 	    if (!this.loaded) {
 		    wrapper.innerHTML = this.config.loadingText;
 		    return wrapper;
 	    }
 
-	    //symbol
-	    var symbol = document.createElement('span');
-	    symbol.className = this.symbols[this.config.mode] + ' symbol';
-	    commuteInfo.appendChild(symbol);
-	    
-	    if (this.config.arrival_time == '') {
-	    //commute time
-		    var trafficInfo = document.createElement('span');
-		    trafficInfo.innerHTML = this.config.prependText + ' ' + this.commute;
-		    commuteInfo.appendChild(trafficInfo);
-		    
-	    //change color if desired and append
-		    if (this.config.changeColor) {
-			    if (this.trafficComparison >= 1 + (this.config.limitRed / 100)) {
-				    commuteInfo.className += ' red';
-			    } else if (this.trafficComparison >= 1 + (this.config.limitYellow / 100)) {
-				    commuteInfo.className += ' yellow';
-			    } else if (this.config.showGreen) {
-				    commuteInfo.className += ' green';
+    	var treks = this.createTripList();
+
+	    for (var t in treks) {
+		    var commuteInfo = document.createElement("div"); //support for config.changeColor
+		    //symbol
+		    var symbol = document.createElement('span');
+		    symbol.className = this.symbols[trek.mode] + ' symbol';
+		    commuteInfo.appendChild(symbol);
+
+		    var trek = treks[t];
+
+		    if (trek.arrival_time == '') {
+		    //commute time
+			    var trafficInfo = document.createElement('span');
+			    trafficInfo.innerHTML = this.config.prependText + ' ' + this.commute;
+			    commuteInfo.appendChild(trafficInfo);
+			    
+		    //change color if desired and append
+			    if (this.config.changeColor) {
+				    if (this.trafficComparison >= 1 + (this.config.limitRed / 100)) {
+					    commuteInfo.className += ' red';
+				    } else if (this.trafficComparison >= 1 + (this.config.limitYellow / 100)) {
+					    commuteInfo.className += ' yellow';
+				    } else if (this.config.showGreen) {
+					    commuteInfo.className += ' green';
+				    }
+			    }
+			    wrapper.appendChild(commuteInfo);
+			    
+		    //routeName
+			    if (trek.route_name) {
+				    var routeName = document.createElement('div');
+				    routeName.className = 'dimmed small';
+				    if (this.summary.length > 0 && trek.show_summary){
+					    routeName.innerHTML = trek.route_name + ' via ' + this.summary; //todo translatable?
+				    } else {
+					    routeName.innerHTML = trek.route_name;
+				    }
+				    wrapper.appendChild(routeName);
+			    }
+		    } else {
+		    //leave-by time
+			    var trafficInfo = document.createElement('span');
+			    trafficInfo.innerHTML = "Leave by " + trek.leaveBy;
+			    commuteInfo.appendChild(trafficInfo);
+			    wrapper.appendChild(commuteInfo);
+			    
+		    //routeName
+			    if (trek.route_name) {
+				    var routeName = document.createElement('div');
+				    routeName.className = 'dimmed small';
+				    if (this.summary.length > 0 && trek.show_summary){
+					    routeName.innerHTML = trek.route_name + ' via ' + this.summary + " to arrive by " + trek.arrival_time.substring(0,2) + ":" + trek.arrival_time.substring(2,4);
+				    } else {
+					    console.log(typeof trek.arrival_time );
+					    routeName.innerHTML = trek.route_name + " to arrive by " + trek.arrival_time.substring(0,2) + ":" + trek.arrival_time.substring(2,4);
+				    }
+				    wrapper.appendChild(routeName);
 			    }
 		    }
-		    wrapper.appendChild(commuteInfo);
-		    
-	    //routeName
-		    if (this.config.route_name) {
-			    var routeName = document.createElement('div');
-			    routeName.className = 'dimmed small';
-			    if (this.summary.length > 0 && this.config.show_summary){
-				    routeName.innerHTML = this.config.route_name + ' via ' + this.summary; //todo translatable?
-			    } else {
-				    routeName.innerHTML = this.config.route_name;
-			    }
-			    wrapper.appendChild(routeName);
-		    }
-	    } else {
-	    //leave-by time
-		    var trafficInfo = document.createElement('span');
-		    trafficInfo.innerHTML = "Leave by " + this.leaveBy;
-		    commuteInfo.appendChild(trafficInfo);
-		    wrapper.appendChild(commuteInfo);
-		    
-	    //routeName
-		    if (this.config.route_name) {
-			    var routeName = document.createElement('div');
-			    routeName.className = 'dimmed small';
-			    if (this.summary.length > 0 && this.config.show_summary){
-				    routeName.innerHTML = this.config.route_name + ' via ' + this.summary + " to arrive by " + this.config.arrival_time.substring(0,2) + ":" + this.config.arrival_time.substring(2,4);
-			    } else {
-				    console.log(typeof this.config.arrival_time );
-				    routeName.innerHTML = this.config.route_name + " to arrive by " + this.config.arrival_time.substring(0,2) + ":" + this.config.arrival_time.substring(2,4);
-			    }
-			    wrapper.appendChild(routeName);
-		    }
-	    }
+		}
 	    return wrapper;
+    },
+
+    createTripList: function() {
+    	var treks = [];
+    	for (var t in this.config.trips) {
+    		var trek = this.config.trips[t];
+    		treks.push(trek);
+    	}
+    	return treks;
     },
 
     getParams: function() {
