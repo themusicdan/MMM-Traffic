@@ -47,8 +47,8 @@ Module.register('MMM-Traffic', {
 		    'transit': 'fa fa-train'
 	    };
 
-	    for (var t in self.config.trips) {
-	    	var trip = self.config.trips[t];
+	    for (var t in this.config.trips) {
+	    	var trip = this.config.trips[t];
 
 		    trip.leaveBy = '';
 		    trip.url = encodeURI('https://maps.googleapis.com/maps/api/directions/json' + trip.getParams());
@@ -56,7 +56,7 @@ Module.register('MMM-Traffic', {
 		    trip.summary = '';
 		    trip.updateCommute(trip);
 
-		    self.config.trips[t] = trip;
+		    this.config.trips[t] = trip;
 		    console.log("URL: " + trip.url);
 		}
     },
