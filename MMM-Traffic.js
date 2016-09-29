@@ -55,6 +55,8 @@ Module.register('MMM-Traffic', {
 		    trip.commute = '';
 		    trip.summary = '';
 		    trip.updateCommute(trip);
+		    
+		    self.config.trips[t] = trip;
 		}
     },
 
